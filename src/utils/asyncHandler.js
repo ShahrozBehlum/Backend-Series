@@ -1,6 +1,6 @@
-//reaper function we use it where we need
+//reaper function we use it where we need like in res route
 const asyncHandler = (requestHandler) => {  //1
-    (req, res, next) => {
+    return (req, res, next) => {
         Promise.resolve(requestHandler(req, res, next))
         .catch((err) => next(err))
     }
@@ -8,6 +8,12 @@ const asyncHandler = (requestHandler) => {  //1
 
 
 export default asyncHandler;
+
+
+
+
+
+
 
 
 //reaper function we use it where we need
