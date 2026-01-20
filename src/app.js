@@ -18,4 +18,14 @@ app.use(express.urlencoded({extended: true, limit: "10kb"}))  // it take data fr
 app.use(express.static("public")) // it make folder in my server public assets for storing pdf and file  
 
 
+//routes import
+import userRouter from './routes/user.routes.js'
+
+
+
+//routes declaration
+app.use("/api/v1/users", userRouter);
+
+
+
 export default app;
