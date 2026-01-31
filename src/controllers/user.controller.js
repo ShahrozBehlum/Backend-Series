@@ -10,7 +10,7 @@ const generateAccessAndRefreshTokens = async (userId) => {
         const accessToken = user.generateAccessToken()
         const refreshToken = user.generateRefreshToken()
 
-        user.refeshToken = refreshtoken
+        user.refreshToken = refreshToken
         await user.save({ validateBeforeSave: false })
 
         return {
@@ -19,9 +19,9 @@ const generateAccessAndRefreshTokens = async (userId) => {
         }
 
     } catch (error) {
-        throw ApiError(500, "Something went wrong while generating access and refreesh token")
+        throw new ApiError(500, error.message, "Something went wrong while generating access and refreesh token")
     }
-}
+};
 
 const registerUser = asyncHandler(async (req, res) => {
     //Algorithm
@@ -53,13 +53,20 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new ApiError(409, "User with username or email already eixst")
     }
 
-    const avatarLocalPath = req.files?.avatar[0]?.path; //4
+    const avatarLocalPath = req.files?.avatar?.[0]?.path; //4
     // const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
     let coverImageLocalPath;
-    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
-        coverImageLocalPath = req.files.coverImage[0].path
+
+    if (
+        req.files &&
+        req.files.coverImage &&
+        Array.isArray(req.files.coverImage) &&
+        req.files.coverImage.length > 0
+    ) {
+        coverImageLocalPath = req.files.coverImage[0].path;
     }
+
 
     if (!avatarLocalPath) {
         throw new ApiError(400, "Avatar file is required")
@@ -105,7 +112,7 @@ const loginUser = asyncHandler(async (req, res) => {
 
     const { username, email, password } = req.body;
 
-    if (!username || !email) {
+    if (!username && !email) {
         throw new ApiError(400, "username or email is required")
     };
 
@@ -145,14 +152,14 @@ const loginUser = asyncHandler(async (req, res) => {
             },
             "User logged In Successfully")
         );
-})
+});
 
 const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(
         req.user._id,
         {
             $set: {
-                refreshToken: undefined 
+                refreshToken: undefined
             }
         }
     )
@@ -167,6 +174,49 @@ const logoutUser = asyncHandler(async (req, res) => {
         .clearCookie("refreshToken", options)
         .json(new ApiResponse(200, {}, "User Logged Out")
         );
+});
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+    const upcommingRefreshToken = req.cookies.refreshToken || req.body
+    
+    if (!upcommingRefreshToken) {
+        throw new ApiError(401, "unauthorized request")
+    }
+
+    try {
+        const decodedToken = Jwt.verify(upcommingRefreshToken, REFRESH_TOKEN_SECRET)
+    
+        const user = await User.findById(decodedToken._id);
+    
+        if (!user) {
+            throw new ApiError(401, "Invalid refresh token")
+        }
+    
+        if (upcommingRefreshToken !== user?.refreshToken) {
+            throw new ApiError(401, "Refresh token is expired or used")
+        }
+    
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+    
+        const {newRefreshToken, accessToken} = await generateAccessAndRefreshTokens(user._id)
+    
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, options)
+            .cookie("refreshToken", newRefreshToken, options)
+            .json(new ApiResponse(200,
+                {
+                    accessToken, refreshToken: newRefreshToken
+                },
+                "Access token refreshed")
+            ); 
+    } catch (error) {
+        throw new ApiError(401, error?.message || "Invalid refresh token")
+    }
+
 })
 
-export  { registerUser, loginUser, logoutUser };
+export { registerUser, loginUser, logoutUser, refreshAccessToken };
